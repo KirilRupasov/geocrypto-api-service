@@ -1,6 +1,13 @@
 import os
 import psycopg2
 import json
+import boto3
+
+def get_db_secret(secret_name, region_name):
+    client = boto3.client('secretsmanager', region_name=region_name)
+    get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    secret = get_secret_value_response['SecretString']
+    return json.loads(secret)
 
 def get_latest_trends(cur, search_term):
     query = """
@@ -11,16 +18,8 @@ def get_latest_trends(cur, search_term):
     """
     cur.execute(query, (search_term,))
     rows = cur.fetchall()
-    return [
-        {
-            'id': row[0],
-            'country': row[1],
-            'search_term': row[2],
-            'trend_score': row[3],
-            'trend_date': row[4].isoformat()
-        }
-        for row in rows
-    ]
+    result = {row[0]: row[1] for row in rows}
+    return result
 
 def get_trends_last24h(cur, search_term):
     query = """
@@ -31,20 +30,13 @@ def get_trends_last24h(cur, search_term):
     """
     cur.execute(query, (search_term,))
     rows = cur.fetchall()
-    return [
-        {
-            'id': row[0],
-            'country': row[1],
-            'search_term': row[2],
-            'trend_score': row[3],
-            'trend_date': row[4].isoformat()
-        }
-        for row in rows
-    ]
+    # Map results to dictionary
+    result = {row[0]: row[1] for row in rows}
+    return result
 
 def lambda_handler(event, context):
-    params = event.get('queryStringParameters', {})
-    search_term = params.get('search_term')
+    path_params = event.get('pathParameters', {})
+    search_term = path_params.get('crypto')
     path = event.get('path', '')
     if not search_term:
         return {
@@ -52,12 +44,14 @@ def lambda_handler(event, context):
             'body': json.dumps({'error': 'search_term parameter is required'})
         }
 
+    secrets = get_db_secret('database', 'eu-west-2')
     conn = psycopg2.connect(
-        host=os.environ['PG_HOST'],
-        database=os.environ['PG_DB'],
-        user=os.environ['PG_USER'],
-        password=os.environ['PG_PASSWORD'],
-        port=os.environ.get('PG_PORT', 5432)
+        host=secrets['DB_HOST'],
+        database=secrets['DB_NAME'],
+        user=secrets['DB_USER'],
+        password=secrets['DB_PASSWORD'],
+        port=secrets.get('DB_PORT', 5432),
+        sslmode='require'
     )
     cur = conn.cursor()
 
@@ -75,6 +69,8 @@ def lambda_handler(event, context):
 
     cur.close()
     conn.close()
+
+    print("RESULTS:", json.dumps(results))
 
     return {
         'statusCode': 200,
