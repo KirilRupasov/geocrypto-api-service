@@ -4,7 +4,7 @@ import json
 
 def get_latest_trends(cur, search_term):
     query = """
-        SELECT DISTINCT ON (country) id, country, search_term, score, trend_date
+        SELECT DISTINCT ON (country) country, trend_score
         FROM trends
         WHERE search_term = %s
         ORDER BY country, trend_date DESC
@@ -16,7 +16,7 @@ def get_latest_trends(cur, search_term):
             'id': row[0],
             'country': row[1],
             'search_term': row[2],
-            'score': row[3],
+            'trend_score': row[3],
             'trend_date': row[4].isoformat()
         }
         for row in rows
@@ -24,7 +24,7 @@ def get_latest_trends(cur, search_term):
 
 def get_trends_last24h(cur, search_term):
     query = """
-        SELECT id, country, search_term, score, trend_date
+        SELECT country, trend_score, trend_date
         FROM trends
         WHERE search_term = %s AND trend_date >= (NOW() - INTERVAL '24 HOURS')
         ORDER BY trend_date DESC
@@ -36,7 +36,7 @@ def get_trends_last24h(cur, search_term):
             'id': row[0],
             'country': row[1],
             'search_term': row[2],
-            'score': row[3],
+            'trend_score': row[3],
             'trend_date': row[4].isoformat()
         }
         for row in rows
