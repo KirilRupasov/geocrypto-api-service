@@ -30,8 +30,12 @@ def get_trends_last24h(cur, search_term):
     """
     cur.execute(query, (search_term,))
     rows = cur.fetchall()
-    # Map results to dictionary
-    result = {row[0]: row[1] for row in rows}
+    result = {}
+    for row in rows:
+        country = row[0]
+        score = row[1]
+        trend_date = row[2].isoformat() if row[2] else None
+        result.setdefault(country, []).append((score, trend_date))
     return result
 
 def lambda_handler(event, context):
